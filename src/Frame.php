@@ -12,17 +12,19 @@ class Frame
     public $maskingKey = [];
     public $payloadData = '';
 
-    protected $receiveSegment = '';
-    public $content = '';
+    public $buff;
+    protected static $receives = [];
+    protected static $payloads = [];
 
-    public function decodeClientBuff(string $buff)
+    public function decodeClientBuff(string $buff, $socket)
     {
-        $this->receiveSegment = $buff;
-        $this->content .= $buff;
+        $this->buff = $buff;
+        $lastContent = static::$receives[(int)$socket]?? '';
 
-        $this->content = $buff;
+        $content = static::$receives[(int)$socket] = $lastContent . $buff;
+
         // 把二进制字符串解压成16进制字符串
-        $message = unpack('H*', $this->content)[1];
+        $message = unpack('H*', $content)[1];
 
         if (($messageLen = strlen($message)) < static::MIN_FRAME_HEX_LENGTH) {
             return null;
@@ -33,7 +35,7 @@ class Frame
         $this->isMasked = true; // 客户端请求服务端需要设置屏蔽码， buff mask必须位1个Bit的1,反之不需要设置
 
         $payloadLenDescBytes = 0;
-        if (in_array($this->opcode, [OpcodeEnum::TEXT, OpcodeEnum::BINARY])) {
+        if (in_array($this->opcode, [OpcodeEnum::TEXT, OpcodeEnum::BINARY, OpcodeEnum::SEGMENT])) {
             if (($this->payloadLen = (hexdec(substr($message, 2, 2)) & 127)) < 126) {
                 $maskingKeyStart = 1+ 1 + 2;
             } else {
@@ -58,7 +60,11 @@ class Frame
             }
 
             $message = substr($message, 0, $completeFrameLen);
-            $this->content = substr($message, $completeFrameLen);
+            if ($exceedMessage = substr($message, $completeFrameLen)) {
+                static::$receives[(int)$socket] = $exceedMessage;
+            } else {
+                unset(static::$receives[(int)$socket]);
+            }
 
             for ($i = 0; $i < 4; $i++) {
                 $this->maskingKey[] = hexdec(substr($message, $maskingKeyStart + $i * 2, 2)); // 截取32位屏蔽码
@@ -66,6 +72,20 @@ class Frame
 
             for($payloadDataStart = $maskingKeyStart + 32 / 4, $n = 0; $payloadDataStart < strlen($message); $payloadDataStart += 2, $n++) {
                 $this->payloadData .= chr(hexdec(substr($message, $payloadDataStart, 2)) ^ $this->maskingKey[$n % 4]);
+            }
+
+            if ($this->finWith3Rsv == FinWith3RsvEnum::NOT_FINISH || $this->opcode == OpcodeEnum::SEGMENT) {
+                $lastSegmentPayloadData = static::$payloads[(int)$socket]?? '';
+
+                if ($this->finWith3Rsv == FinWith3RsvEnum::NOT_FINISH) {
+                    static::$payloads[(int)$socket] = $lastSegmentPayloadData . $this->payloadData;
+                    return null;
+                }
+
+                if ($this->opcode == OpcodeEnum::SEGMENT) {
+                    if (isset(static::$payloads[(int)$socket])) unset(static::$payloads[(int)$socket]);
+                    $this->payloadData = $lastSegmentPayloadData . $this->payloadData;
+                }
             }
         }
 
@@ -84,16 +104,16 @@ class Frame
             case OpcodeEnum::PING:
             case OpcodeEnum::PONG:
             case OpcodeEnum::OUT_CONNECT:
-                $this->content = pack("H*", sprintf("%x%x", FinWith3RsvEnum::FINISH, $opcode));
+                $this->buff = pack("H*", sprintf("%x%x", FinWith3RsvEnum::FINISH, $opcode));
                 break;
             case OpcodeEnum::BINARY:
             case OpcodeEnum::TEXT:
                 if (($this->payloadLen = strlen($this->payloadData)) <= 125) {
-                    $this->content = pack("H*", sprintf("%x%x", FinWith3RsvEnum::FINISH, $opcode)) . chr($this->payloadLen) . $payload;
+                    $this->buff = pack("H*", sprintf("%x%x", FinWith3RsvEnum::FINISH, $opcode)) . chr($this->payloadLen) . $payload;
                 } else if ($this->payloadLen <= 65535) {
-                    $this->content = pack("H*", sprintf("%x%x", FinWith3RsvEnum::FINISH, $opcode)) . chr(126) . pack("n", $this->payloadLen) . $payload;
+                    $this->buff = pack("H*", sprintf("%x%x", FinWith3RsvEnum::FINISH, $opcode)) . chr(126) . pack("n", $this->payloadLen) . $payload;
                 } else {
-                    $this->content = pack("H*", sprintf("%x%x", FinWith3RsvEnum::FINISH, $opcode)) . chr(127) . pack("J", $this->payloadLen) . $payload;
+                    $this->buff = pack("H*", sprintf("%x%x", FinWith3RsvEnum::FINISH, $opcode)) . chr(127) . pack("J", $this->payloadLen) . $payload;
                 }
         }
 

@@ -63,7 +63,7 @@ class WebsocketServer
                             continue;
                         };
 
-                        if (is_null($frame = (new Frame())->decodeClientBuff($buff))) {
+                        if (is_null($frame = (new Frame())->decodeClientBuff($buff, $reader))) {
                             continue;
                         }
 
