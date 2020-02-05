@@ -8,7 +8,7 @@ class ServerConfig
     protected $mode = self::SELECT_MODE;
     protected $address; // 监听地址
     protected $port; // 监听端口号
-    protected $workerNum = 1;
+    protected $workerNum;
 
     public function setMode(string $mode)
     {

@@ -2,6 +2,8 @@
 namespace Bobby\Websocket;
 
 use Bobby\MultiProcesses\Pool;
+use Bobby\MultiProcesses\Quit;
+use Bobby\MultiProcesses\Worker;
 
 class WebsocketServer
 {
@@ -31,8 +33,24 @@ class WebsocketServer
     {
         switch ($this->config->mode) {
             case ServerConfig::SELECT_MODE:
-                $this->select();
+                $callback = [$this, 'select'];
         }
+
+        $pool = new Pool($this->config->workerNum, new Worker(function () use ($callback) {
+            call_user_func($callback);
+        }));
+
+        pcntl_signal(SIGTERM, function ($signo) use ($pool) {
+            $workerNum = $pool->getWorkersNum();
+            for ($i = 0; $i < $workerNum; $i++) {
+                posix_kill($pool->getWorker()->getPid(), SIGKILL);
+            }
+            Quit::normalQuit();
+        });
+
+        $pool->onCollect();
+        $pool->run();
+        Pool::collect();
     }
 
     protected function listenSocket()
