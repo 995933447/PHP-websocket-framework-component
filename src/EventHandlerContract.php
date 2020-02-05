@@ -17,7 +17,7 @@ abstract class EventHandlerContract
         $response->pong($socket);
     }
 
-    public function onOutConnect($socket)
+    public function onOutConnect($socket, Frame $frame)
     {
         $this->outConnect($socket);
     }

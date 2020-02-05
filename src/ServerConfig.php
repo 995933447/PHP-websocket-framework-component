@@ -3,11 +3,12 @@ namespace Bobby\Websocket;
 
 class ServerConfig
 {
-    const POLL_MODE = 'poll';
+    const SELECT_MODE = 'select';
 
-    protected $mode = self::POLL_MODE;
+    protected $mode = self::SELECT_MODE;
     protected $address; // 监听地址
     protected $port; // 监听端口号
+    protected $workerNum = 1;
 
     public function setMode(string $mode)
     {
@@ -22,6 +23,11 @@ class ServerConfig
     public function setPort(int $port)
     {
         $this->port = $port;
+    }
+
+    public function setWorkerNum(int $num)
+    {
+        $this->workerNum = $num;
     }
 
     public function __get($name)

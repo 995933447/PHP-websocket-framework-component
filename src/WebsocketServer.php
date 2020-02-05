@@ -1,6 +1,8 @@
 <?php
 namespace Bobby\Websocket;
 
+use Bobby\MultiProcesses\Pool;
+
 class WebsocketServer
 {
     protected $config;
@@ -15,9 +17,10 @@ class WebsocketServer
 
     public function __construct(ServerConfig $config, EventHandlerContract $eventHandler)
     {
-        if (!$config->address || !$config->port) {
-            throw new \InvalidArgumentException("instance of " . get_class($config) . " must to set address or port");
+        if (!$config->address || !$config->port || !$config->workerNum) {
+            throw new \InvalidArgumentException("instance of " . get_class($config) . " must to set address or port, worker number.");
         }
+
         $this->config = $config;
 
         $eventHandler->bindServer($this);
@@ -27,21 +30,22 @@ class WebsocketServer
     public function run()
     {
         switch ($this->config->mode) {
-            case ServerConfig::POLL_MODE:
-                $this->poll();
+            case ServerConfig::SELECT_MODE:
+                $this->select();
         }
     }
 
     protected function listenSocket()
     {
-        if (!$this->listen = stream_socket_server("tcp://{$this->config->address}:{$this->config->port}", $errno, $errstr, STREAM_SERVER_BIND | STREAM_SERVER_LISTEN)) {
+        $contextOption['socket']['so_reuseport'] = 1;
+        $context = stream_context_create($contextOption);
+        if (!$this->listen = stream_socket_server("tcp://{$this->config->address}:{$this->config->port}", $errno, $errstr, STREAM_SERVER_BIND | STREAM_SERVER_LISTEN, $context)) {
             throw new \Exception($errstr, $errno);
         };
         stream_set_blocking($this->listen, false);
-        stream_context_set_option($this->listen, SOL_SOCKET, SO_REUSEADDR, 1);
     }
 
-    protected function poll()
+    protected function select()
     {
         $this->listenSocket();
         $this->readers[] = $this->listen;
@@ -72,7 +76,7 @@ class WebsocketServer
                                 $this->eventHandler->onPing($reader, $frame, new PushResponse());
                                 break;
                             case OpcodeEnum::OUT_CONNECT:
-                                $this->eventHandler->onOutConnect($reader);
+                                $this->eventHandler->onOutConnect($reader, $frame);
                                 break;
                             case OpcodeEnum::TEXT:
                             case OpcodeEnum::PONG:

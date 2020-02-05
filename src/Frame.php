@@ -13,14 +13,15 @@ class Frame
     public $payloadData = '';
 
     public $buff;
+
     protected static $receives = [];
     protected static $payloads = [];
 
     public function decodeClientBuff(string $buff, $socket)
     {
         $this->buff = $buff;
-        $lastContent = static::$receives[(int)$socket]?? '';
 
+        $lastContent = static::$receives[(int)$socket]?? '';
         $content = static::$receives[(int)$socket] = $lastContent . $buff;
 
         // 把二进制字符串解压成16进制字符串
