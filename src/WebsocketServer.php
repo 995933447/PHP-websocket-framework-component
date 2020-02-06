@@ -70,7 +70,7 @@ class WebsocketServer
         $context = stream_context_create($contextOption);
         if (!$this->listen = stream_socket_server("tcp://{$this->config->address}:{$this->config->port}", $errno, $errstr, STREAM_SERVER_BIND | STREAM_SERVER_LISTEN, $context)) {
             throw new \Exception($errstr, $errno);
-        };
+        }
         stream_set_blocking($this->listen, false);
     }
 
