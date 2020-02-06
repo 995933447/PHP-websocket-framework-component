@@ -94,7 +94,7 @@ class WebsocketServer
                         if (!$buff = stream_get_contents($reader)) {
                             $this->dealLostPackage($reader);
                             continue;
-                        };
+                        }
 
                         if (is_null($frame = (new Frame())->decodeClientBuff($buff, $reader))) {
                             continue;
@@ -156,7 +156,7 @@ class WebsocketServer
         $newHead .= "Sec-WebSocket-Accept: $newKey\r\n\r\n";
 
         fwrite($socket, $newHead);
-
+       
         $this->connections[intval($socket)] = $socket;
         $this->readers[intval($socket)] = $socket;
 

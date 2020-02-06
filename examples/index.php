@@ -8,5 +8,5 @@ use Bobby\Websocket\WebsocketServer;
 $config = new ServerConfig();
 $config->setAddress("0.0.0.0");
 $config->setPort(8901);
-$config->setWorkerNum(5);
+$config->setWorkerNum(1);
 (new WebsocketServer($config, new EventHandler()))->run();
