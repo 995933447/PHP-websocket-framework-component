@@ -48,7 +48,18 @@ class WebsocketServer
             Quit::normalQuit();
         });
 
-        $pool->onCollect();
+        pcntl_signal(SIGCHLD, function ($signo) {
+            while (($pid = pcntl_wait($status, WNOHANG)) > 0) {
+                $workerNum = $pool->getWorkersNum();
+                for ($i = 0; $i < $workerNum; $i++) {
+                    if ($pool->getWorker()->getPid() == $pid) {
+                        $worker->run();
+                        break;
+                    }
+                }
+            }
+        });
+
         $pool->run();
         Pool::collect();
     }
@@ -71,7 +82,7 @@ class WebsocketServer
         $writers = $exceptions = [];
         while (true) {
             $readers = $this->readers;
-            stream_select($readers, $writers, $exceptions, null);
+            @stream_select($readers, $writers, $exceptions, null);
 
             foreach ($readers as $key => $reader) {
                 if ($reader === $this->listen) {
