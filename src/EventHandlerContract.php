@@ -10,22 +10,23 @@ abstract class EventHandlerContract
         $this->server = $server;
     }
 
-    abstract public function onMessage($socket, Frame $frame, PushResponse $response);
+    abstract public function onMessage($connection, Frame $frame);
 
-    public function onPing($socket, Frame $frame, PushResponse $response)
+    public function onPing($connection, Frame $frame)
     {
-        $response->pong($socket);
+        Pusher::pong($connection);
     }
 
-    public function onOutConnect($socket, Frame $frame)
+    public function onOutConnect($connection, Frame $frame)
     {
-        $this->outConnect($socket);
+        $this->outConnect($connection);
     }
 
-    public function outConnect($socket)
+    public function outConnect($connection)
     {
-        fclose($socket);
-        unset($this->server->connections[intval($socket)]);
-        unset($this->server->readers[intval($socket)]);
+        Pusher::notifyClose($connection);
+        fclose($connection);
+        unset($this->server->connections[intval($connection)]);
+        unset($this->server->readers[intval($connection)]);
     }
 }

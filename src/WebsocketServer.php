@@ -48,11 +48,11 @@ class WebsocketServer
             Quit::normalQuit();
         });
 
-        pcntl_signal(SIGCHLD, function ($signo) {
+        pcntl_signal(SIGCHLD, function ($signo) use($pool) {
             while (($pid = pcntl_wait($status, WNOHANG)) > 0) {
                 $workerNum = $pool->getWorkersNum();
                 for ($i = 0; $i < $workerNum; $i++) {
-                    if ($pool->getWorker()->getPid() == $pid) {
+                    if (($worker = $pool->getWorker())->getPid() == $pid) {
                         $worker->run();
                         break;
                     }
@@ -102,14 +102,14 @@ class WebsocketServer
 
                         switch ($frame->opcode) {
                             case OpcodeEnum::PING:
-                                $this->eventHandler->onPing($reader, $frame, new PushResponse());
+                                $this->eventHandler->onPing($reader, $frame);
                                 break;
                             case OpcodeEnum::OUT_CONNECT:
                                 $this->eventHandler->onOutConnect($reader, $frame);
                                 break;
                             case OpcodeEnum::TEXT:
                             case OpcodeEnum::PONG:
-                                $this->eventHandler->onMessage($reader, $frame, new PushResponse());
+                                $this->eventHandler->onMessage($reader, $frame);
                         }
                     }
                 }
@@ -133,29 +133,29 @@ class WebsocketServer
 
     protected function shackWithConnection($socket)
     {
-        if (!$head = stream_get_contents($socket)) {
+        if (!$header = stream_get_contents($socket)) {
             return $this->dealLostPackage($socket);
         }
 
         if (method_exists($this->eventHandler, "onShack")) {
-            $this->eventHandler->onShack(new ShackHttpRequest($head), $response = new RefuseShackResponse());
+            $this->eventHandler->onShack(new ShackHttpRequest($header), $response = new RefuseShackResponse());
 
             if ($response->hasErrors()) {
                 return $response->response($socket);
             }
         }
 
-        $key = substr($head, strpos($head, "Sec-WebSocket-Key:") + 18);
+        $key = substr($header, strpos($header, "Sec-WebSocket-Key:") + 18);
         $key = trim(substr($key, 0, strpos($key, "\r\n")));
         $newKey = base64_encode(sha1($key . "258EAFA5-E914-47DA-95CA-C5AB0DC85B11", true));
 
-        $newHead = "HTTP/1.1 101 Switching Protocols\r\n";
-        $newHead .= "Upgrade: websocket\r\n";
-        $newHead .= "Sec-WebSocket-Version: 13\r\n";
-        $newHead .= "Connection: Upgrade\r\n";
-        $newHead .= "Sec-WebSocket-Accept: $newKey\r\n\r\n";
+        $newHeader = "HTTP/1.1 101 Switching Protocols\r\n";
+        $newHeader .= "Upgrade: websocket\r\n";
+        $newHeader .= "Sec-WebSocket-Version: 13\r\n";
+        $newHeader .= "Connection: Upgrade\r\n";
+        $newHeader .= "Sec-WebSocket-Accept: $newKey\r\n\r\n";
 
-        fwrite($socket, $newHead);
+        fwrite($socket, $newHeader);
        
         $this->connections[intval($socket)] = $socket;
         $this->readers[intval($socket)] = $socket;
